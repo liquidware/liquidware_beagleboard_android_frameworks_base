@@ -57,12 +57,12 @@ public class HardwareService extends IHardwareService.Stub {
     /**
      * Light brightness is managed by a user setting.
      */
-    static final int BRIGHTNESS_MODE_USER = 0;
+    static final int BRIGHTNESS_MODE_USER = 1;
 
     /**
      * Light brightness is managed by a light sensor.
      */
-    static final int BRIGHTNESS_MODE_SENSOR = 1;
+    static final int BRIGHTNESS_MODE_SENSOR = 0;
 
     private final LinkedList<Vibration> mVibrations;
     private Vibration mCurrentVibration;
