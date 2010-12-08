@@ -22,6 +22,8 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.WindowManagerPolicy;
 import android.view.RawInputEvent;
+import java.io.FileInputStream;
+import java.util.StringTokenizer;
 
 public class InputDevice {
     static final boolean DEBUG_POINTERS = false;
@@ -32,8 +34,10 @@ public class InputDevice {
     /** Amount that trackball needs to move in order to generate a key event. */
     static final int TRACKBALL_MOVEMENT_THRESHOLD = 6;
 
+    static final String CALIBRATION_FILE = "/data/data/touchscreen.test/files/pointercal";
+
     /** Maximum number of pointers we will track and report. */
-    static final int MAX_POINTERS = 10;
+    static final int MAX_POINTERS = 2;
     
     final int id;
     final int classes;
@@ -42,6 +46,7 @@ public class InputDevice {
     final AbsoluteInfo absY;
     final AbsoluteInfo absPressure;
     final AbsoluteInfo absSize;
+    final TransformInfo tInfo;
     
     long mKeyDownTime = 0;
     int mMetaKeysState = 0;
@@ -631,16 +636,32 @@ public class InputDevice {
             final AbsoluteInfo absSize = device.absSize;
             for (int i=0; i<numPointers; i++) {
                 final int j = i * MotionEvent.NUM_SAMPLE_DATA;
-            
+                float x = reportData[j + MotionEvent.SAMPLE_X];       //cml
+                float y = reportData[j + MotionEvent.SAMPLE_Y];       //cml
+
                 if (absX != null) {
-                    reportData[j + MotionEvent.SAMPLE_X] =
-                            ((reportData[j + MotionEvent.SAMPLE_X]-absX.minValue)
-                                / absX.range) * w;
+                    if (device.tInfo != null) {
+                        reportData[j + MotionEvent.SAMPLE_X] =
+                                (device.tInfo.x1 * x +
+                                device.tInfo.y1 * y +
+                                device.tInfo.z1)/ device.tInfo.s;
+                    } else {
+                        reportData[j + MotionEvent.SAMPLE_X] =
+                                 ((reportData[j + MotionEvent.SAMPLE_X]-absX.minValue)
+                                     / absX.range) * w;
+                    }
                 }
                 if (absY != null) {
-                    reportData[j + MotionEvent.SAMPLE_Y] =
-                            ((reportData[j + MotionEvent.SAMPLE_Y]-absY.minValue)
-                                / absY.range) * h;
+                    if (device.tInfo != null) {
+                        reportData[j + MotionEvent.SAMPLE_Y] =
+                                (device.tInfo.x2 * x +
+                                device.tInfo.y2 * y +
+                                device.tInfo.z2)/ device.tInfo.s;
+                    } else {
+                        reportData[j + MotionEvent.SAMPLE_Y] =
+                                ((reportData[j + MotionEvent.SAMPLE_Y]-absY.minValue)
+                                    / absY.range) * h;
+                    }
                 }
                 if (absPressure != null) {
                     reportData[j + MotionEvent.SAMPLE_PRESSURE] = 
@@ -805,6 +826,16 @@ public class InputDevice {
         int flat;
         int fuzz;
     };
+
+    static class TransformInfo {
+        float x1;
+        float y1;
+        float z1;
+        float x2;
+        float y2;
+        float z2;
+        float s;
+    }; 
     
     InputDevice(int _id, int _classes, String _name,
             AbsoluteInfo _absX, AbsoluteInfo _absY,
@@ -816,5 +847,36 @@ public class InputDevice {
         absY = _absY;
         absPressure = _absPressure;
         absSize = _absSize;
+        TransformInfo t = null;
+        
+        try {
+        FileInputStream is = new FileInputStream(CALIBRATION_FILE);
+        byte[] mBuffer = new byte[64];
+        int len = is.read(mBuffer);
+        is.close();
+        
+        if (len > 0) {
+            int i;
+            for (i = 0 ; i < len ; i++) {
+         if (mBuffer[i] == '\n' || mBuffer[i] == 0) {
+         break;
+         }
+            }
+            len = i;
+         }
+        
+         StringTokenizer st = new StringTokenizer( new String(mBuffer, 0, 0, len));
+         t = new TransformInfo ();
+         t.x1 = Integer.parseInt( st.nextToken() );
+         t.y1 = Integer.parseInt( st.nextToken() );
+         t.z1 = Integer.parseInt( st.nextToken() );
+         t.x2 = Integer.parseInt( st.nextToken() );
+         t.y2 = Integer.parseInt( st.nextToken() );
+         t.z2 = Integer.parseInt( st.nextToken() );
+         t.s = Integer.parseInt( st.nextToken() );
+         } catch (java.io.FileNotFoundException e) {
+         } catch (java.io.IOException e) {
+         }
+         tInfo = t;
     }
 };
