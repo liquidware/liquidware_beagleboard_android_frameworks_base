@@ -679,12 +679,15 @@ public class WifiStateTracker extends NetworkStateTracker {
 
     private void checkIsBluetoothPlaying() {
         boolean isBluetoothPlaying = false;
+        
         Set<BluetoothDevice> connected = mBluetoothA2dp.getConnectedSinks();
-
-        for (BluetoothDevice device : connected) {
-            if (mBluetoothA2dp.getSinkState(device) == BluetoothA2dp.STATE_PLAYING) {
-                isBluetoothPlaying = true;
-                break;
+        
+        if (connected != null) {
+            for (BluetoothDevice device : connected) {
+                if (mBluetoothA2dp.getSinkState(device) == BluetoothA2dp.STATE_PLAYING) {
+                    isBluetoothPlaying = true;
+                    break;
+                }
             }
         }
         setBluetoothScanMode(isBluetoothPlaying);

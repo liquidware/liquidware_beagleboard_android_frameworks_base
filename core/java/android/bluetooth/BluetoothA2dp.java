@@ -192,6 +192,11 @@ public final class BluetoothA2dp {
      */
     public Set<BluetoothDevice> getConnectedSinks() {
         if (DBG) log("getConnectedSinks()");
+        
+        if (mService == null) {
+            return null;
+        }
+
         try {
             return Collections.unmodifiableSet(
                     new HashSet<BluetoothDevice>(Arrays.asList(mService.getConnectedSinks())));
