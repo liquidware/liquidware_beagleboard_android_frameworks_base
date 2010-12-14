@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "GpsLocationProvider"
+#define LOG_TAG "GpsLocationProvider-JNI"
 
 //#define LOG_NDDEBUG 0
 
@@ -35,6 +35,7 @@ static jmethodID method_reportStatus;
 static jmethodID method_reportSvStatus;
 static jmethodID method_reportAGpsStatus;
 static jmethodID method_reportNmea;
+static jmethodID method_reportSerialMsg;
 static jmethodID method_xtraDownloadRequest;
 static jmethodID method_reportNiNotification;
 
@@ -49,6 +50,7 @@ static GpsStatus    sGpsStatus;
 static GpsSvStatus  sGpsSvStatus;
 static AGpsStatus   sAGpsStatus;
 static GpsNiNotification  sGpsNiNotification;
+static SerialMsg	sSerialReceive;
 
 // buffer for NMEA data
 #define NMEA_SENTENCE_LENGTH    100
@@ -68,6 +70,7 @@ static GpsSvStatus  sGpsSvStatusCopy;
 static AGpsStatus   sAGpsStatusCopy;
 static NmeaSentence sNmeaBufferCopy[NMEA_SENTENCE_LENGTH];
 static GpsNiNotification  sGpsNiNotificationCopy;
+static SerialMsg	sSerialReceiveCopy;
 
 enum CallbackType {
     kLocation = 1,
@@ -78,6 +81,7 @@ enum CallbackType {
     kDisableRequest = 32,
     kNmeaAvailable = 64,
     kNiNotification = 128,
+    kSerialReceive = 256,
 }; 
 static int sPendingCallbacks;
 
@@ -151,11 +155,28 @@ static void agps_status_callback(AGpsStatus* agps_status)
     pthread_mutex_unlock(&sEventMutex);
 }
 
+static void receive_callback(SerialMsg* msg)
+{
+	LOGD("Inside %s", __FUNCTION__);
+	pthread_mutex_lock(&sEventMutex);
+
+	LOGD("Adding pending callback kSerialReceive");
+    sPendingCallbacks |= kSerialReceive;
+    LOGD("Copying msg, %d bytes to sSerialReceive", sizeof(sSerialReceive));
+    memcpy(&sSerialReceive, msg, sizeof(sSerialReceive));
+    LOGD("Msg copy complete");
+
+    pthread_cond_signal(&sEventCond);
+    pthread_mutex_unlock(&sEventMutex);
+    LOGD("Leaving %s", __FUNCTION__);
+}
+
 GpsCallbacks sGpsCallbacks = {
     location_callback,
     status_callback,
     sv_status_callback,
-    nmea_callback
+    nmea_callback,
+    receive_callback
 };
 
 static void
@@ -199,6 +220,7 @@ static void android_location_GpsLocationProvider_class_init_native(JNIEnv* env, 
     method_reportSvStatus = env->GetMethodID(clazz, "reportSvStatus", "()V");
     method_reportAGpsStatus = env->GetMethodID(clazz, "reportAGpsStatus", "(II)V");
     method_reportNmea = env->GetMethodID(clazz, "reportNmea", "(IJ)V");
+    method_reportSerialMsg = env->GetMethodID(clazz, "reportSerialMsg", "()V");
     method_xtraDownloadRequest = env->GetMethodID(clazz, "xtraDownloadRequest", "()V");
     method_reportNiNotification = env->GetMethodID(clazz, "reportNiNotification", "(IIIIILjava/lang/String;Ljava/lang/String;IILjava/lang/String;)V");
 }
@@ -290,7 +312,9 @@ static void android_location_GpsLocationProvider_wait_for_event(JNIEnv* env, job
         memcpy(&sNmeaBufferCopy, &sNmeaBuffer, nmeaSentenceCount * sizeof(sNmeaBuffer[0]));
     if (pendingCallbacks & kNiNotification)
         memcpy(&sGpsNiNotificationCopy, &sGpsNiNotification, sizeof(sGpsNiNotificationCopy));
-    pthread_mutex_unlock(&sEventMutex);   
+    if (pendingCallbacks & kSerialReceive)
+        memcpy(&sSerialReceiveCopy, &sSerialReceive, sizeof(sSerialReceiveCopy));
+    pthread_mutex_unlock(&sEventMutex);
 
     if (pendingCallbacks & kLocation) {
         env->CallVoidMethod(obj, method_reportLocation, sGpsLocationCopy.flags,
@@ -315,6 +339,11 @@ static void android_location_GpsLocationProvider_wait_for_event(JNIEnv* env, job
     }
     if (pendingCallbacks & kXtraDownloadRequest) {
         env->CallVoidMethod(obj, method_xtraDownloadRequest);
+    }
+    if (pendingCallbacks & kSerialReceive) {
+    	LOGD("Handling pending kSerialReceive callback inside %s, calling Java method method_reportSerialMsg",__FUNCTION__);
+        env->CallVoidMethod(obj, method_reportSerialMsg);
+    	LOGD("Finished kSerialReceive callback");
     }
     if (pendingCallbacks & kDisableRequest) {
         // don't need to do anything - we are just poking so wait_for_event will return.
@@ -383,6 +412,30 @@ static jint android_location_GpsLocationProvider_read_nmea(JNIEnv* env, jobject 
 
     env->ReleaseByteArrayElements(nmeaArray, nmea, 0);
     return length;
+}
+
+static jint android_location_GpsLocationProvider_read_serial_msg(JNIEnv* env, jobject obj, jbyteArray msgArray, jint buffer_size)
+{
+    // this should only be called from within a call to reportSerialMsg, so we don't need to lock here
+
+    jbyte* msg = env->GetByteArrayElements(msgArray, 0);
+
+    int length = strlen(sSerialReceiveCopy.data);
+    if (length > buffer_size)
+        length = buffer_size;
+    memcpy(msg, sSerialReceiveCopy.data, length);
+
+    env->ReleaseByteArrayElements(msgArray, msg, 0);
+    return length;
+}
+
+static void android_location_GpsLocationProvider_serial_print(JNIEnv* env, jobject obj, jstring msg)
+{
+	LOGD("in android_location_GpsLocationProvider_serial_print");
+    const char *c_msg = env->GetStringUTFChars(msg, NULL);
+    sGpsInterface->serial_print(c_msg);
+    env->ReleaseStringUTFChars(msg, c_msg);
+    LOGD("leaving android_location_GpsLocationProvider_serial_print");
 }
 
 static void android_location_GpsLocationProvider_inject_time(JNIEnv* env, jobject obj, jlong time, 
@@ -492,6 +545,8 @@ static JNINativeMethod sMethods[] = {
     {"native_wait_for_event", "()V", (void*)android_location_GpsLocationProvider_wait_for_event},
     {"native_read_sv_status", "([I[F[F[F[I)I", (void*)android_location_GpsLocationProvider_read_sv_status},
     {"native_read_nmea", "(I[BI)I", (void*)android_location_GpsLocationProvider_read_nmea},
+    {"native_read_serial_msg", "([BI)I", (void*)android_location_GpsLocationProvider_read_serial_msg},
+    {"native_serial_print", "(Ljava/lang/String;)V", (void*)android_location_GpsLocationProvider_serial_print},
     {"native_inject_time", "(JJI)V", (void*)android_location_GpsLocationProvider_inject_time},
     {"native_inject_location", "(DDF)V", (void*)android_location_GpsLocationProvider_inject_location},
     {"native_supports_xtra", "()Z", (void*)android_location_GpsLocationProvider_supports_xtra},

@@ -30,4 +30,5 @@ oneway interface IGpsStatusListener
             in float[] elevations, in float[] azimuths, 
             int ephemerisMask, int almanacMask, int usedInFixMask);
     void onNmeaReceived(long timestamp, String nmea);
+    void onSerialMsgReceived(String sMsg);
 }

@@ -126,6 +126,10 @@ public final class GpsStatus {
     public interface NmeaListener {
         void onNmeaReceived(long timestamp, String nmea);
     }
+    
+    public interface SerialMsgListener {
+        void onSerialMsgReceived(String sMsg);
+    }
 
     GpsStatus() {
         for (int i = 0; i < mSatellites.length; i++) {

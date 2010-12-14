@@ -53,6 +53,8 @@ public class LocationManager {
             new HashMap<GpsStatus.Listener, GpsStatusListenerTransport>();
     private final HashMap<GpsStatus.NmeaListener, GpsStatusListenerTransport> mNmeaListeners =
             new HashMap<GpsStatus.NmeaListener, GpsStatusListenerTransport>();
+    private final HashMap<GpsStatus.SerialMsgListener, GpsStatusListenerTransport> mSerialMsgListeners =
+        new HashMap<GpsStatus.SerialMsgListener, GpsStatusListenerTransport>();
     private final GpsStatus mGpsStatus = new GpsStatus();
 
     /**
@@ -1123,10 +1125,12 @@ public class LocationManager {
 
         private final GpsStatus.Listener mListener;
         private final GpsStatus.NmeaListener mNmeaListener;
+        private final GpsStatus.SerialMsgListener mSerialMsgListener;
 
         // This must not equal any of the GpsStatus event IDs
         private static final int NMEA_RECEIVED = 1000;
-
+        private static final int SERIAL_MSG_RECEIVED = 1001;
+        
         private class Nmea {
             long mTimestamp;
             String mNmea;
@@ -1138,15 +1142,37 @@ public class LocationManager {
         }
         private ArrayList<Nmea> mNmeaBuffer;
 
+        private class SerialMsg {
+            String mSerialMsg;
+
+            SerialMsg(String msg) {
+                mSerialMsg = msg;
+            }
+        }
+        private ArrayList<SerialMsg> mSerialMsgBuffer;
+        
         GpsStatusListenerTransport(GpsStatus.Listener listener) {
             mListener = listener;
             mNmeaListener = null;
+            mNmeaBuffer = null;
+            mSerialMsgListener = null;
+            mSerialMsgBuffer = null;
         }
 
         GpsStatusListenerTransport(GpsStatus.NmeaListener listener) {
-            mNmeaListener = listener;
-            mListener = null;
-            mNmeaBuffer = new ArrayList<Nmea>();
+        	mListener = null;
+        	mNmeaListener = listener;
+        	mNmeaBuffer = new ArrayList<Nmea>();
+        	mSerialMsgListener = null;
+        	mSerialMsgBuffer = null;
+        }
+        
+        GpsStatusListenerTransport(GpsStatus.SerialMsgListener listener) {
+        	mListener = null;
+        	mNmeaListener = null;
+        	mNmeaBuffer = null;
+        	mSerialMsgListener = listener;
+            mSerialMsgBuffer = new ArrayList<SerialMsg>();
         }
 
         public void onGpsStarted() {
@@ -1201,6 +1227,19 @@ public class LocationManager {
                 mGpsHandler.sendMessage(msg);
             }
         }
+        
+        public void onSerialMsgReceived(String sMsg) {
+            if (mSerialMsgListener != null) {
+                synchronized (mSerialMsgBuffer) {
+                    mSerialMsgBuffer.add(new SerialMsg(sMsg));
+                }
+                Message msg = Message.obtain();
+                msg.what = SERIAL_MSG_RECEIVED;
+                // remove any SERIAL_MSG_RECEIVED messages already in the queue
+                mGpsHandler.removeMessages(SERIAL_MSG_RECEIVED);
+                mGpsHandler.sendMessage(msg);
+            }
+        }
 
         private final Handler mGpsHandler = new Handler() {
             @Override
@@ -1213,6 +1252,15 @@ public class LocationManager {
                             mNmeaListener.onNmeaReceived(nmea.mTimestamp, nmea.mNmea);
                         }
                         mNmeaBuffer.clear();
+                    }
+                } else if (msg.what == SERIAL_MSG_RECEIVED) {
+                    synchronized (mSerialMsgBuffer) {
+                        int length = mSerialMsgBuffer.size();
+                        for (int i = 0; i < length; i++) {
+                            SerialMsg sMsg = mSerialMsgBuffer.get(i);
+                            mSerialMsgListener.onSerialMsgReceived(sMsg.mSerialMsg);
+                        }
+                        mSerialMsgBuffer.clear();
                     }
                 } else {
                     // synchronize on mGpsStatus to ensure the data is copied atomically.
@@ -1308,6 +1356,52 @@ public class LocationManager {
     public void removeNmeaListener(GpsStatus.NmeaListener listener) {
         try {
             GpsStatusListenerTransport transport = mNmeaListeners.remove(listener);
+            if (transport != null) {
+                mService.removeGpsStatusListener(transport);
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in unregisterGpsStatusListener: ", e);
+        }
+    }
+    
+    /**
+     * Adds an SerialMsgListener.
+     *
+     * @param listener a {#link GpsStatus.SerialMsgListener} object to register
+     *
+     * @return true if the listener was successfully added
+     *
+     * @throws SecurityException if the ACCESS_FINE_LOCATION permission is not present
+     */
+    public boolean addSerialMsgListener(GpsStatus.SerialMsgListener listener) {
+        boolean result;
+
+        if (mSerialMsgListeners.get(listener) != null) {
+            // listener is already registered
+            return true;
+        }
+        try {
+            GpsStatusListenerTransport transport = new GpsStatusListenerTransport(listener);
+            result = mService.addGpsStatusListener(transport);
+            if (result) {
+                mSerialMsgListeners.put(listener, transport);
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "RemoteException in registerGpsStatusListener: ", e);
+            result = false;
+        }
+
+        return result;
+    }
+
+    /**
+     * Removes an NMEA listener.
+     *
+     * @param listener a {#link GpsStatus.NmeaListener} object to remove
+     */
+    public void removeSerialMsgListener(GpsStatus.SerialMsgListener listener) {
+        try {
+            GpsStatusListenerTransport transport = mSerialMsgListeners.remove(listener);
             if (transport != null) {
                 mService.removeGpsStatusListener(transport);
             }
@@ -1429,5 +1523,17 @@ public class LocationManager {
             return false;
         }
     }
- 
+    
+    
+    
+    public void SerialPrint(String msg) {
+    	Log.d(TAG,"SerialPrint about to create bundle");
+    	
+    	Bundle extras = new Bundle();
+    	extras.putString("msg", msg);
+    	Log.d(TAG,"SerialPrint about to send serial_print extraCommand");
+    	sendExtraCommand("gps", "serial_print", extras);
+		Log.d(TAG,"finished sending message");
+    }
+    
 }

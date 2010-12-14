@@ -681,9 +681,20 @@ public class GpsLocationProvider extends ILocationProvider.Stub {
             }
         }
     }
+    
+    public void SerialPrint(String msg) {
+    	Log.d(TAG, "about to native print");
+    	native_serial_print(msg);
+    	Log.d(TAG, "finished native print");
+    }
 
     public boolean sendExtraCommand(String command, Bundle extras) {
         
+    	if ("serial_print".equals(command)) {
+    		Log.w(TAG, "sendExtraCommand: found serial_print extra command");
+    		native_serial_print(extras.getString("msg"));
+    	}
+    	
         if ("delete_aiding_data".equals(command)) {
             return deleteAidingData(extras);
         }
@@ -1073,6 +1084,32 @@ public class GpsLocationProvider extends ILocationProvider.Stub {
         }
     }
 
+    /**
+     * called from native code to report SERIAL data received
+     */
+    private void reportSerialMsg() {
+        synchronized(mListeners) {
+            int size = mListeners.size();
+            if (size > 0) {
+                // don't bother creating the String if we have no listeners
+                int length = native_read_serial_msg(mSerialMsgBuffer, mSerialMsgBuffer.length);
+                String sMsg = new String(mSerialMsgBuffer, 0, length);
+
+                for (int i = 0; i < size; i++) {
+                    Listener listener = mListeners.get(i);
+                    try {
+                        listener.mListener.onSerialMsgReceived(sMsg);
+                    } catch (RemoteException e) {
+                        Log.w(TAG, "RemoteException in reportSerialMsg");
+                        mListeners.remove(listener);
+                        // adjust for size of list changing
+                        size--;
+                    }
+                }
+            }
+        }
+    }
+    
     private void xtraDownloadRequest() {
         if (Config.LOGD) Log.d(TAG, "xtraDownloadRequest");
         if (mNetworkThread != null) {
@@ -1358,6 +1395,8 @@ public class GpsLocationProvider extends ILocationProvider.Stub {
     private int mSvCount;
     // preallocated to avoid memory allocation in reportNmea()
     private byte[] mNmeaBuffer = new byte[120];
+    // preallocated to avoid memory allocation in reportSerialMsg()
+    private byte[] mSerialMsgBuffer = new byte[1024];
 
     static { class_init_native(); }
     private static native void class_init_native();
@@ -1376,6 +1415,8 @@ public class GpsLocationProvider extends ILocationProvider.Stub {
     private native int native_read_sv_status(int[] svs, float[] snrs,
             float[] elevations, float[] azimuths, int[] masks);
     private native int native_read_nmea(int index, byte[] buffer, int bufferSize);
+    private native int native_read_serial_msg(byte[] buffer, int bufferSize);
+    private native void native_serial_print(String msg);
     private native void native_inject_location(double latitude, double longitude, float accuracy);
 
     // XTRA Support    
