@@ -1202,6 +1202,15 @@ public abstract class Context {
     public static final String LOCATION_SERVICE = "location";
     /**
      * Use with {@link #getSystemService} to retrieve a {@link
+     * android.location.LocationManager} for controlling Serial
+     * updates.
+     *
+     * @see #getSystemService
+     * @see android.serial.SerialManager
+     */
+    public static final String SERIAL_SERVICE = "serial";
+    /**
+     * Use with {@link #getSystemService} to retrieve a {@link
      * android.app.SearchManager} for handling searches.
      *
      * @see #getSystemService

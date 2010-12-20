@@ -81,6 +81,8 @@ import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.Vibrator;
 import android.os.FileUtils.FileStatus;
+import android.serial.ISerialManager;
+import android.serial.SerialManager;
 import android.telephony.TelephonyManager;
 import android.text.ClipboardManager;
 import android.util.AndroidRuntimeException;
@@ -156,6 +158,7 @@ class ApplicationContext extends Context {
     private static ConnectivityManager sConnectivityManager;
     private static WifiManager sWifiManager;
     private static LocationManager sLocationManager;
+    private static SerialManager sSerialManager;
     private static final HashMap<File, SharedPreferencesImpl> sSharedPrefs =
             new HashMap<File, SharedPreferencesImpl>();
 
@@ -875,6 +878,8 @@ class ApplicationContext extends Context {
             return AccessibilityManager.getInstance(this);
         } else if (LOCATION_SERVICE.equals(name)) {
             return getLocationManager();
+        } else if (SERIAL_SERVICE.equals(name)) {
+            return getSerialManager();
         } else if (SEARCH_SERVICE.equals(name)) {
             return getSearchManager();
         } else if (SENSOR_SERVICE.equals(name)) {
@@ -1017,6 +1022,17 @@ class ApplicationContext extends Context {
             }
         }
         return sLocationManager;
+    }
+    
+    private SerialManager getSerialManager() {
+        synchronized (sSync) {
+            if (sSerialManager == null) {
+                IBinder b = ServiceManager.getService(SERIAL_SERVICE);
+                ISerialManager service = ISerialManager.Stub.asInterface(b);
+                sSerialManager = new SerialManager(service);
+            }
+        }
+        return sSerialManager;
     }
 
     private SearchManager getSearchManager() {

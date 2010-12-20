@@ -150,6 +150,9 @@ LOCAL_SRC_FILES += \
 	location/java/android/location/ILocationListener.aidl \
 	location/java/android/location/ILocationManager.aidl \
 	location/java/android/location/ILocationProvider.aidl \
+	serial/java/android/serial/ISerialStatusListener.aidl \
+	serial/java/android/serial/ISerialStatusProvider.aidl \
+	serial/java/android/serial/ISerialManager.aidl \
 	location/java/android/location/INetInitiatedListener.aidl \
 	media/java/android/media/IAudioService.aidl \
 	media/java/android/media/IMediaScannerListener.aidl \

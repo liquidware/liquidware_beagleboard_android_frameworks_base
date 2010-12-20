@@ -280,6 +280,13 @@ class ServerThread extends Thread {
             } catch (Throwable e) {
                 Log.e(TAG, "Failure starting Location Manager", e);
             }
+            
+            try {
+                Log.i(TAG, "Serial Manager");
+                ServiceManager.addService(Context.SERIAL_SERVICE, new SerialManagerService(context));
+            } catch (Throwable e) {
+                Log.e(TAG, "Failure starting Serial Manager", e);
+            }
 
             try {
                 Log.i(TAG, "Search Service");
