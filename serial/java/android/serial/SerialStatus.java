@@ -38,19 +38,6 @@ public final class SerialStatus {
 
     public interface Listener {
         /**
-         * Called to report changes in the GPS status.
-         * The event number is one of:
-         * <ul>
-         * <li> {@link GpsStatus#GPS_EVENT_STARTED}
-         * <li> {@link GpsStatus#GPS_EVENT_STOPPED}
-         * <li> {@link GpsStatus#GPS_EVENT_FIRST_FIX}
-         * <li> {@link GpsStatus#GPS_EVENT_SATELLITE_STATUS}
-         * </ul>
-         *
-         * When this method is called, the client should call 
-         * {@link LocationManager#getGpsStatus} to get additional
-         * status information.
-         *
          * @param event event number for this notification
          */
         void onSerialStatusChanged(int event);
@@ -64,12 +51,6 @@ public final class SerialStatus {
     SerialStatus() {
     }
 
-    /**
-     * Used by {@link LocationManager#getGpsStatus} to copy LocationManager's
-     * cached GpsStatus instance to the client's copy.
-     * Since this method is only used within {@link LocationManager#getGpsStatus},
-     * it does not need to be synchronized.
-     */
     void setStatus(SerialStatus status) {
     	
     }
