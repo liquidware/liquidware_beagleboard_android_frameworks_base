@@ -209,7 +209,6 @@ public class SerialManager {
      *
      * @return true if the listener was successfully added
      * 
-     * @throws SecurityException if the ACCESS_FINE_LOCATION permission is not present
      */
     public boolean addSerialStatusListener(SerialStatus.Listener listener) {
         boolean result;
@@ -255,7 +254,6 @@ public class SerialManager {
      *
      * @return true if the listener was successfully added
      *
-     * @throws SecurityException if the ACCESS_FINE_LOCATION permission is not present
      */
     public boolean addSerialMsgListener(SerialStatus.SerialMsgListener listener) {
         boolean result = false;
@@ -416,10 +414,10 @@ public class SerialManager {
 
         public void run() {
             Log.d(TAG, "SerialEventThread starting");
-            // Exit as soon as disable() is called instead of waiting for the GPS to stop.
+            // Exit as soon as disable() is called instead of waiting for the Serial to stop.
             while (mEnabled) {
-                // this will wait for an event from the GPS,
-                // which will be reported via reportLocation or reportStatus
+                // this will wait for an event from the Serial,
+                // which will be reported via reportStatus
                 native_wait_for_event();
             }
             Log.d(TAG, "SerialEventThread exiting");

@@ -19,7 +19,7 @@ package android.serial;
 import android.serial.ISerialStatusListener;
 
 /**
- * An interface for location providers that provide SERIAL status information.
+ * An interface for serial providers that provide SERIAL status information.
  *
  * {@hide}
  */
